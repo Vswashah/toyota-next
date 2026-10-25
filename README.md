@@ -81,6 +81,17 @@ Customers can edit their car (year, model, trim, color, mileage, miles per year,
 - **Payments change the account everywhere:** the engine, Overview and admin console read the post-payment balance, and NEXT re-runs its decision workflow automatically (trigger `payment`). A paid-off loan is handled: refinancing is skipped and equity is full.
 - **Simulated:** demo funding accounts only, no card entry, no money moves. *Reset demo data* clears a profile's payments and autopay.
 
+### Real card payments (Stripe, test mode)
+
+Add a Stripe **test** secret key to `.env.local` (`STRIPE_SECRET_KEY=sk_test_...`) and restart. Payments then offers **Pay by card**:
+- The customer pays on Stripe's hosted Checkout page, so card data never touches this app.
+- On return, the server retrieves the session from Stripe and posts the payment only if it is `paid`. Posting is idempotent per session.
+- Optional webhook backup: run `stripe listen --forward-to localhost:3000/api/stripe/webhook` and set `STRIPE_WEBHOOK_SECRET`.
+- Live keys (`sk_live_`) are refused unless `STRIPE_ALLOW_LIVE=1`, because these are synthetic accounts.
+- Buy-now-pay-later and slow bank debits are excluded, so it is cards only.
+
+Test card: `4242 4242 4242 4242`, any future date and CVC. On Stripe's page, untick "Save my information with Link" or enter a phone number.
+
 ## TFS team console (`/admin`)
 
 A separate view for the Toyota Financial Services team, linked from the welcome screen. It refreshes every 5 s from the recorded workflows:
