@@ -5,7 +5,7 @@ import type { StoredRecommendation } from './db.ts'
 import type { CustomerProfile } from './data.ts'
 import type { ScenarioResult } from './scenarios.ts'
 import type { Dealer, Task } from './action-agent.ts'
-import type { Assumptions } from './scenarios.ts'
+import { ASSUMPTION_LABELS, type Assumptions } from './scenarios.ts'
 
 export type AskActionId = 'open_plan' | 'specialist' | 'payments' | 'twin' | 'settings'
 export interface Answer {
@@ -116,9 +116,12 @@ export async function whatIfAnswer(customerId: string, base: Assumptions, overri
   const rec = run.recommendation
   if (!rec) return { text: `I couldn't complete that simulation: ${run.error ?? 'unknown error'}.`, source: 'simulation', intent: 'what_if' }
   const same = rec.scenarioKey === current.scenarioKey
-  const changes = Object.entries(overrides).map(([k, v]) => `${k} = ${typeof v === 'number' && !/Months|Pct/.test(k) ? usd(v) : v}`).join(', ')
+  const fmt = (k: string, v: unknown) => typeof v !== 'number' ? String(v) : /Months/.test(k) ? `${v} months` : /Pct/.test(k) ? `${v}%` : usd(v)
+  // Budget and target usually move together; say it once.
+  const entries = Object.entries(overrides).filter(([k, v]) => !(k === 'paymentTarget' && overrides.monthlyBudget === v))
+  const changes = entries.map(([k, v]) => `${ASSUMPTION_LABELS[k as keyof Assumptions].toLowerCase()} of ${fmt(k, v)}`).join(' and ')
   return {
     source: 'simulation', intent: 'what_if', ran: { overrides, recommendedAction: rec.recommendedAction, headline: rec.headline },
-    text: `I re-ran the full workflow with ${changes}. ${same ? 'The recommended move stays the same' : 'The recommended move would change'}: ${rec.headline}. ${rec.qualifications[0] ?? ''} This is a hypothetical run; your saved recommendation is unchanged. Apply it in NEXT Twin to keep it.`.trim(),
+    text: `With ${changes}, ${same ? 'my suggestion stays the same' : 'my suggestion would change'}: ${rec.headline}. ${rec.qualifications[0] ?? ''} Nothing is saved; try it in NEXT Twin to keep it.`.replace(/\s+/g, ' ').trim(),
   }
 }

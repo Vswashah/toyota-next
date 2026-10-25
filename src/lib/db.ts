@@ -42,7 +42,8 @@ const P = <T>(s: unknown): T => JSON.parse(String(s)) as T
 const uid = (p: string) => `${p}-${crypto.randomUUID().slice(0, 8)}`
 type Row = Record<string, unknown>
 
-export function openStore(path = process.env.NEXT_DB_PATH ?? '.data/next.db') {
+// ponytail: on Vercel only /tmp is writable and it's per-instance, so demo data can reset on a cold start; use a hosted DB (Turso/Postgres) if it must persist.
+export function openStore(path = process.env.NEXT_DB_PATH ?? (process.env.VERCEL ? '/tmp/next.db' : '.data/next.db')) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const db = new DatabaseSync(path)
   db.exec(SCHEMA)

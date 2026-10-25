@@ -60,15 +60,13 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function Logo({ small = false }: { small?: boolean }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <svg width={small ? 22 : 28} height={small ? 22 : 28} viewBox="0 0 32 32" aria-hidden>
-        <rect x="1" y="1" width="30" height="30" rx="8" fill="none" stroke="#272D36" />
-        <path d="M9 22 L16 9 L23 22" fill="none" stroke="#EB0A1E" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="16" cy="19" r="1.8" fill="#F5F6F7" />
-      </svg>
+    <div className="flex items-center gap-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/toyota-logo.png" alt="Toyota" width={700} height={503} className={small ? 'h-9 w-auto' : 'h-11 w-auto'} />
+      <span className="h-8 w-px bg-line" aria-hidden />
       <div className="leading-none">
-        <div className={`font-display font-semibold tracking-[.2em] ${small ? 'text-[12px]' : 'text-[14px]'}`}>TOYOTA NEXT</div>
-        <div className="mt-1 font-display text-[9px] tracking-[.28em] text-mute">NEXT <span className="text-red">//</span> INTELLIGENCE</div>
+        <div className={`font-display font-semibold tracking-[.2em] ${small ? 'text-[13px]' : 'text-[15px]'}`}>NEXT</div>
+        <div className="mt-1 font-display text-[9px] tracking-[.28em] text-mute">INTELLIGENCE</div>
       </div>
     </div>
   )

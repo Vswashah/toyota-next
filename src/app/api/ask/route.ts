@@ -4,6 +4,23 @@ import { actionsFor, askContext, deterministicAnswer, HOW, parseWhatIf, simplest
 import { getCustomer } from '@/lib/data.ts'
 import type { Task } from '@/lib/action-agent.ts'
 import { llmAnswer, llmConfigured } from '@/lib/llm.ts'
+import { nextDueDate, previewPayment } from '@/lib/payments.ts'
+import { currentApr } from '@/lib/scenarios.ts'
+import type { CustomerProfile } from '@/lib/data.ts'
+
+/** Live account facts so Michi can answer servicing questions (balance, due date, payoff), not just the recommendation. */
+function accountFacts(c: CustomerProfile, db: ReturnType<typeof store>) {
+  const f = c.financing, paid = db.listPayments(c.id), autopay = db.getAutopay(c.id)
+  let payoffEstimate: number | null = null
+  try { if (f.financingType === 'loan') payoffEstimate = previewPayment(c, 'payoff').amount } catch { /* paid off or no APR */ }
+  return {
+    type: f.financingType, monthlyPayment: f.monthlyPayment, balance: f.currentBalance, paymentsLeft: f.remainingMonths, apr: currentApr(c)?.apr ?? null,
+    leaseEnds: f.leaseEndDate, nextDue: f.currentBalance === 0 ? null : nextDueDate(paid.filter(p => p.kind === 'monthly').length),
+    autopay: autopay.enabled ? `on, from ${autopay.method}` : 'off', payoffEstimate,
+    canPayExtra: f.financingType === 'loan' ? 'Yes, extra payments go to principal with no fee in this app (Payments screen); the loan ends sooner.' : 'Lease: monthly payments only.',
+    vehicle: `${c.vehicle.year} ${c.vehicle.model} ${c.vehicle.trim}`, odometer: c.vehicle.odometer,
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -35,13 +52,16 @@ export async function POST(req: Request) {
   else {
     answer = deterministicAnswer(question, rec, ctx)
     if (llmConfigured()) {
-      const facts = { recommendedAction: rec.recommendedAction, headline: rec.headline, reasons: rec.reasons, tradeoffs: rec.tradeoffs, qualifications: rec.qualifications, alternatives: rec.alternatives, nextAction: rec.nextAction, account: ctx }
+      // Internal scoring lines ("modeled score… keep credit") are engine jargon, not customer reasons.
+      const facts = { recommendedAction: rec.recommendedAction, headline: rec.headline, reasons: rec.reasons.filter(r => !/modeled score/i.test(r)), tradeoffs: rec.tradeoffs, qualifications: rec.qualifications, alternatives: rec.alternatives, nextAction: rec.nextAction, context: ctx, myAccount: accountFacts(c, db) }
       const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000)
       try { answer = { ...answer, text: await llmAnswer(question, facts, ctl.signal, history), source: 'llm', actions: actionsFor(answer.intent, ctx) } }
-      catch { /* deterministic answer stands */ }
+      catch (e) { console.warn('[ask] LLM answer rejected, using deterministic:', (e as Error).message) }
       finally { clearTimeout(t) }
     }
   }
+  if (/(pay ?off|payoff|early|extra|autopay|due|balance|owe)/i.test(question) && !answer.actions?.some(a => a.id === 'payments'))
+    answer = { ...answer, actions: [...(answer.actions ?? []), { id: 'payments', label: 'Make a payment' }] }
   db.logToLatest(customerId, {
     stage: 'decision', label: whatIf ? 'What-if simulation' : 'Answer question', toolName: whatIf ? 'runWorkflow (hypothetical)' : `ask.${answer.source}`,
     status: 'completed', inputSummary: `"${question.slice(0, 120)}"`, outputSummary: `${answer.intent} via ${answer.source}${answer.ran ? ': ' + answer.ran.headline : ''}`,
